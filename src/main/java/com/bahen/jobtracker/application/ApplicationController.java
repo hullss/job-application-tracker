@@ -8,6 +8,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.Authentication;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -34,14 +35,24 @@ public class ApplicationController {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public ApplicationResponse createApplication(
-            @Valid @RequestBody CreateApplicationRequest request
+            @Valid @RequestBody CreateApplicationRequest request,
+            Authentication authentication
     ) {
-        return applicationService.createApplication(request);
+        return applicationService.createApplication(
+                request,
+                authentication.getName()
+        );
     }
 
     @GetMapping("/{id}")
-    public ApplicationResponse getApplication(@PathVariable Long id) {
-        return applicationService.getApplication(id);
+    public ApplicationResponse getApplication(
+            @PathVariable Long id,
+            Authentication authentication
+    ) {
+        return applicationService.getApplication(
+                id,
+                authentication.getName()
+        );
     }
 
     @GetMapping
@@ -49,22 +60,40 @@ public class ApplicationController {
             @RequestParam(required = false) String search,
             @RequestParam(required = false) ApplicationStatus status,
             @RequestParam(defaultValue = "0") @Min(0) int page,
-            @RequestParam(defaultValue = "10") @Min(1) @Max(100) int size
+            @RequestParam(defaultValue = "10") @Min(1) @Max(100) int size,
+            Authentication authentication
     ) {
-        return applicationService.getApplications(search, status, page, size);
+        return applicationService.getApplications(
+                search,
+                status,
+                page,
+                size,
+                authentication.getName()
+        );
     }
 
     @PutMapping("/{id}")
     public ApplicationResponse updateApplication(
             @PathVariable Long id,
-            @Valid @RequestBody UpdateApplicationRequest request
+            @Valid @RequestBody UpdateApplicationRequest request,
+            Authentication authentication
     ) {
-        return applicationService.updateApplication(id, request);
+        return applicationService.updateApplication(
+                id,
+                request,
+                authentication.getName()
+        );
     }
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void deleteApplication(@PathVariable Long id) {
-        applicationService.deleteApplication(id);
+    public void deleteApplication(
+            @PathVariable Long id,
+            Authentication authentication
+    ) {
+        applicationService.deleteApplication(
+                id,
+                authentication.getName()
+        );
     }
 }

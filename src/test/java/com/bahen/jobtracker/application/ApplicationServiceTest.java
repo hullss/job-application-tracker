@@ -2,6 +2,8 @@ package com.bahen.jobtracker.application;
 
 import com.bahen.jobtracker.application.dto.CreateApplicationRequest;
 import com.bahen.jobtracker.application.dto.UpdateApplicationRequest;
+import com.bahen.jobtracker.user.UserAccount;
+import com.bahen.jobtracker.user.UserAccountRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -28,14 +30,22 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class ApplicationServiceTest {
 
+    private static final String USER_EMAIL = "test@example.com";
+
     @Mock
     private ApplicationRepository applicationRepository;
+
+    @Mock
+    private UserAccountRepository userAccountRepository;
 
     private ApplicationService applicationService;
 
     @BeforeEach
     void setUp() {
-        applicationService = new ApplicationService(applicationRepository);
+        applicationService = new ApplicationService(
+                applicationRepository,
+                userAccountRepository
+        );
     }
 
     @Test
@@ -54,7 +64,12 @@ class ApplicationServiceTest {
         when(applicationRepository.save(any(Application.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
-        applicationService.createApplication(request);
+        UserAccount owner = createUser();
+
+        when(userAccountRepository.findByEmailIgnoreCase(USER_EMAIL))
+                .thenReturn(Optional.of(owner));
+
+        applicationService.createApplication(request, USER_EMAIL);
 
         ArgumentCaptor<Application> captor =
                 ArgumentCaptor.forClass(Application.class);
@@ -69,28 +84,36 @@ class ApplicationServiceTest {
                 ApplicationStatus.APPLIED,
                 savedApplication.getCurrentStatus()
         );
+        assertEquals(USER_EMAIL, savedApplication.getOwner().getEmail());
     }
 
     @Test
     void getApplicationThrowsExceptionWhenIdDoesNotExist() {
-        when(applicationRepository.findById(999L))
+        when(applicationRepository.findByIdAndOwnerEmailIgnoreCase(
+                999L,
+                USER_EMAIL
+        ))
                 .thenReturn(Optional.empty());
 
         assertThrows(
                 ApplicationNotFoundException.class,
-                () -> applicationService.getApplication(999L)
+                () -> applicationService.getApplication(999L, USER_EMAIL)
         );
     }
 
     @Test
     void updateApplicationChangesEntityAndFlushes() {
         Application application = new Application(
+                createUser(),
                 "Old Company",
                 "Old Position",
                 LocalDate.of(2026, 7, 20)
         );
 
-        when(applicationRepository.findById(1L))
+        when(applicationRepository.findByIdAndOwnerEmailIgnoreCase(
+                1L,
+                USER_EMAIL
+        ))
                 .thenReturn(Optional.of(application));
 
         UpdateApplicationRequest request = new UpdateApplicationRequest(
@@ -104,7 +127,11 @@ class ApplicationServiceTest {
                 "Technical interview scheduled"
         );
 
-        var response = applicationService.updateApplication(1L, request);
+        var response = applicationService.updateApplication(
+                1L,
+                request,
+                USER_EMAIL
+        );
 
         assertEquals("New Company", response.company());
         assertEquals("Senior Java Developer", response.position());
@@ -116,6 +143,7 @@ class ApplicationServiceTest {
     @Test
     void getApplicationsUsesEmptyStringWhenSearchIsMissing() {
         Application application = new Application(
+                createUser(),
                 "Acme",
                 "Java Developer",
                 LocalDate.of(2026, 7, 26)
@@ -126,6 +154,7 @@ class ApplicationServiceTest {
                 new PageImpl<>(List.of(application), pageable, 1);
 
         when(applicationRepository.findAllFiltered(
+                eq(USER_EMAIL),
                 eq(""),
                 isNull(),
                 any(Pageable.class)
@@ -135,10 +164,15 @@ class ApplicationServiceTest {
                 null,
                 null,
                 0,
-                10
+                10,
+                USER_EMAIL
         );
 
         assertEquals(1, response.content().size());
         assertEquals("Acme", response.content().getFirst().company());
+    }
+
+    private UserAccount createUser() {
+        return new UserAccount(USER_EMAIL, "{bcrypt}password-hash");
     }
 }

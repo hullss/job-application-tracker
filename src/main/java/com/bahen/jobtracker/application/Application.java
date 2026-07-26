@@ -1,12 +1,16 @@
 package com.bahen.jobtracker.application;
 
+import com.bahen.jobtracker.user.UserAccount;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
@@ -21,6 +25,10 @@ public class Application {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "user_id", nullable = false)
+    private UserAccount owner;
 
     @Column(nullable = false, length = 255)
     private String company;
@@ -55,7 +63,13 @@ public class Application {
     protected Application() {
     }
 
-    public Application(String company, String position, LocalDate appliedDate) {
+    public Application(
+            UserAccount owner,
+            String company,
+            String position,
+            LocalDate appliedDate
+    ) {
+        this.owner = owner;
         this.company = company;
         this.position = position;
         this.appliedDate = appliedDate;
@@ -80,6 +94,10 @@ public class Application {
 
     public Long getId() {
         return id;
+    }
+
+    public UserAccount getOwner() {
+        return owner;
     }
 
     public String getCompany() {
