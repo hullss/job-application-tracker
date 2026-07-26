@@ -4,6 +4,8 @@ import com.bahen.jobtracker.application.dto.ApplicationPageResponse;
 import com.bahen.jobtracker.application.dto.ApplicationResponse;
 import com.bahen.jobtracker.application.dto.CreateApplicationRequest;
 import com.bahen.jobtracker.application.dto.UpdateApplicationRequest;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -21,6 +23,10 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+@Tag(
+        name = "Applications",
+        description = "Manage the current user's job applications"
+)
 @Validated
 @RestController
 @RequestMapping("/api/applications")
@@ -32,6 +38,7 @@ public class ApplicationController {
         this.applicationService = applicationService;
     }
 
+    @Operation(summary = "Create a job application")
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public ApplicationResponse createApplication(
@@ -44,6 +51,7 @@ public class ApplicationController {
         );
     }
 
+    @Operation(summary = "Get a job application by ID")
     @GetMapping("/{id}")
     public ApplicationResponse getApplication(
             @PathVariable Long id,
@@ -55,6 +63,9 @@ public class ApplicationController {
         );
     }
 
+    @Operation(
+            summary = "Get applications with search and pagination"
+    )
     @GetMapping
     public ApplicationPageResponse getApplications(
             @RequestParam(required = false) String search,
@@ -72,6 +83,7 @@ public class ApplicationController {
         );
     }
 
+    @Operation(summary = "Update a job application")
     @PutMapping("/{id}")
     public ApplicationResponse updateApplication(
             @PathVariable Long id,
@@ -85,6 +97,7 @@ public class ApplicationController {
         );
     }
 
+    @Operation(summary = "Delete a job application")
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteApplication(
