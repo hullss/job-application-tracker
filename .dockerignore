@@ -1,0 +1,10 @@
+.git
+.github
+.idea
+.openai
+frontend
+target
+node_modules
+*.iml
+README.md
+compose.yaml
