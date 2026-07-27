@@ -14,7 +14,9 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
@@ -88,6 +90,63 @@ class ApplicationServiceTest {
     }
 
     @Test
+    void createApplicationCopiesOptionalFieldsAndRequestedStatus() {
+        Instant followUpAt = Instant.parse("2026-07-30T09:00:00Z");
+        CreateApplicationRequest request = new CreateApplicationRequest(
+                "Acme",
+                "Java Developer",
+                "https://example.com/jobs/1",
+                "Build Spring Boot services",
+                ApplicationStatus.INTERVIEW,
+                LocalDate.of(2026, 7, 26),
+                followUpAt,
+                "Talked to the recruiter"
+        );
+
+        when(userAccountRepository.findByEmailIgnoreCase(USER_EMAIL))
+                .thenReturn(Optional.of(createUser()));
+        when(applicationRepository.save(any(Application.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        var response = applicationService.createApplication(
+                request,
+                USER_EMAIL
+        );
+
+        assertEquals("https://example.com/jobs/1", response.jobUrl());
+        assertEquals(
+                "Build Spring Boot services",
+                response.jobDescription()
+        );
+        assertEquals(ApplicationStatus.INTERVIEW, response.currentStatus());
+        assertEquals(followUpAt, response.followUpAt());
+        assertEquals("Talked to the recruiter", response.notes());
+    }
+
+    @Test
+    void createApplicationRejectsMissingAuthenticatedUser() {
+        when(userAccountRepository.findByEmailIgnoreCase(USER_EMAIL))
+                .thenReturn(Optional.empty());
+
+        assertThrows(
+                UsernameNotFoundException.class,
+                () -> applicationService.createApplication(
+                        new CreateApplicationRequest(
+                                "Acme",
+                                "Java Developer",
+                                null,
+                                null,
+                                null,
+                                LocalDate.of(2026, 7, 26),
+                                null,
+                                null
+                        ),
+                        USER_EMAIL
+                )
+        );
+    }
+
+    @Test
     void getApplicationThrowsExceptionWhenIdDoesNotExist() {
         when(applicationRepository.findByIdAndOwnerEmailIgnoreCase(
                 999L,
@@ -99,6 +158,26 @@ class ApplicationServiceTest {
                 ApplicationNotFoundException.class,
                 () -> applicationService.getApplication(999L, USER_EMAIL)
         );
+    }
+
+    @Test
+    void getApplicationReturnsAnOwnedApplication() {
+        Application application = new Application(
+                createUser(),
+                "Acme",
+                "Java Developer",
+                LocalDate.of(2026, 7, 26)
+        );
+
+        when(applicationRepository.findByIdAndOwnerEmailIgnoreCase(
+                1L,
+                USER_EMAIL
+        )).thenReturn(Optional.of(application));
+
+        var response = applicationService.getApplication(1L, USER_EMAIL);
+
+        assertEquals("Acme", response.company());
+        assertEquals("Java Developer", response.position());
     }
 
     @Test
@@ -170,6 +249,71 @@ class ApplicationServiceTest {
 
         assertEquals(1, response.content().size());
         assertEquals("Acme", response.content().getFirst().company());
+    }
+
+    @Test
+    void getApplicationsNormalizesFiltersAndUsesRequestedPage() {
+        Pageable pageable = PageRequest.of(2, 5);
+        Page<Application> result =
+                new PageImpl<>(List.of(), pageable, 12);
+
+        when(applicationRepository.findAllFiltered(
+                eq(USER_EMAIL),
+                eq("java"),
+                eq(ApplicationStatus.INTERVIEW),
+                any(Pageable.class)
+        )).thenReturn(result);
+
+        var response = applicationService.getApplications(
+                "  JAVA  ",
+                ApplicationStatus.INTERVIEW,
+                2,
+                5,
+                USER_EMAIL
+        );
+
+        ArgumentCaptor<Pageable> captor =
+                ArgumentCaptor.forClass(Pageable.class);
+        verify(applicationRepository).findAllFiltered(
+                eq(USER_EMAIL),
+                eq("java"),
+                eq(ApplicationStatus.INTERVIEW),
+                captor.capture()
+        );
+
+        assertEquals(2, response.page());
+        assertEquals(5, response.size());
+        assertEquals(12, response.totalElements());
+        assertEquals(3, response.totalPages());
+        assertEquals(2, captor.getValue().getPageNumber());
+        assertEquals(5, captor.getValue().getPageSize());
+        assertEquals(
+                "DESC",
+                captor.getValue()
+                        .getSort()
+                        .getOrderFor("appliedDate")
+                        .getDirection()
+                        .name()
+        );
+    }
+
+    @Test
+    void deleteApplicationDeletesOnlyTheOwnedApplication() {
+        Application application = new Application(
+                createUser(),
+                "Acme",
+                "Java Developer",
+                LocalDate.of(2026, 7, 26)
+        );
+
+        when(applicationRepository.findByIdAndOwnerEmailIgnoreCase(
+                1L,
+                USER_EMAIL
+        )).thenReturn(Optional.of(application));
+
+        applicationService.deleteApplication(1L, USER_EMAIL);
+
+        verify(applicationRepository).delete(application);
     }
 
     private UserAccount createUser() {
