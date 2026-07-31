@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { useLanguage } from '../i18n/language-context'
 
 type ConfirmDialogProps = {
     open: boolean
@@ -19,6 +20,7 @@ export function ConfirmDialog({
     onCancel,
     onConfirm,
 }: ConfirmDialogProps) {
+    const { t } = useLanguage()
     const dialogRef = useRef<HTMLDialogElement>(null)
 
     useEffect(() => {
@@ -62,7 +64,9 @@ export function ConfirmDialog({
             </div>
 
             <div className="confirm-dialog__copy">
-                <p className="panel-kicker">Confirm action</p>
+                <p className="panel-kicker">
+                    {t('dialog.confirm')}
+                </p>
                 <h2>{title}</h2>
                 <p>{description}</p>
             </div>
@@ -74,7 +78,7 @@ export function ConfirmDialog({
                     onClick={onCancel}
                     disabled={isPending}
                 >
-                    Cancel
+                    {t('dialog.cancel')}
                 </button>
                 <button
                     className="button button--danger-solid"
@@ -82,7 +86,9 @@ export function ConfirmDialog({
                     onClick={onConfirm}
                     disabled={isPending}
                 >
-                    {isPending ? 'Deleting...' : confirmLabel}
+                    {isPending
+                        ? t('dialog.deleting')
+                        : confirmLabel}
                 </button>
             </div>
         </dialog>

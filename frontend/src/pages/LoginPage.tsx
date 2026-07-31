@@ -3,9 +3,12 @@ import { Link, useNavigate } from 'react-router'
 import { login } from '../api/auth'
 import { consumeAuthMessage } from '../api/client'
 import { ThemeToggle } from '../components/ThemeToggle'
+import { LanguageSelector } from '../components/LanguageSelector'
+import { useLanguage } from '../i18n/language-context'
 
 export function LoginPage() {
     const navigate = useNavigate()
+    const { t } = useLanguage()
 
     const [email, setEmail] = useState('')
     const [password, setPassword] = useState('')
@@ -35,7 +38,7 @@ export function LoginPage() {
             setError(
                 caughtError instanceof Error
                     ? caughtError.message
-                    : 'Unable to log in',
+                    : t('auth.unableLogin'),
             )
         } finally {
             setIsSubmitting(false)
@@ -53,13 +56,10 @@ export function LoginPage() {
 
                     <div className="auth-spotlight__content">
                         <p className="eyebrow eyebrow--light">
-                            Your career. Your next move.
+                            {t('auth.careerEyebrow')}
                         </p>
-                        <h1>Make every application count.</h1>
-                        <p>
-                            One calm place to organize opportunities, remember
-                            every follow-up, and keep moving forward.
-                        </p>
+                        <h1>{t('auth.loginHero')}</h1>
+                        <p>{t('auth.loginHeroText')}</p>
                     </div>
 
                     <div
@@ -75,24 +75,24 @@ export function LoginPage() {
                     <div className="auth-quote">
                         <span aria-hidden="true">✦</span>
                         <p>
-                            Your complete job search, finally in one focused
-                            workspace.
+                            {t('auth.loginQuote')}
                         </p>
                     </div>
                 </div>
 
                 <div className="auth-panel">
                     <div className="auth-panel__theme">
+                        <LanguageSelector />
                         <ThemeToggle />
                     </div>
 
                     <div className="auth-panel__content">
                         <div className="auth-heading">
-                            <p className="eyebrow">Welcome back</p>
-                            <h2>Sign in to your account</h2>
-                            <p>
-                                Pick up where you left off.
+                            <p className="eyebrow">
+                                {t('auth.welcomeBack')}
                             </p>
+                            <h2>{t('auth.signInTitle')}</h2>
+                            <p>{t('auth.signInSubtitle')}</p>
                         </div>
 
                         <form
@@ -100,7 +100,7 @@ export function LoginPage() {
                             onSubmit={handleSubmit}
                         >
                             <label className="field">
-                                <span>Email address</span>
+                                <span>{t('auth.email')}</span>
                                 <input
                                     type="email"
                                     value={email}
@@ -114,7 +114,7 @@ export function LoginPage() {
                             </label>
 
                             <label className="field">
-                                <span>Password</span>
+                                <span>{t('auth.password')}</span>
                                 <input
                                     type="password"
                                     value={password}
@@ -122,7 +122,9 @@ export function LoginPage() {
                                         setPassword(event.target.value)
                                     }
                                     autoComplete="current-password"
-                                    placeholder="Enter your password"
+                                    placeholder={t(
+                                        'auth.passwordPlaceholder',
+                                    )}
                                     required
                                 />
                             </label>
@@ -145,14 +147,16 @@ export function LoginPage() {
                                 disabled={isSubmitting}
                             >
                                 {isSubmitting
-                                    ? 'Signing in...'
-                                    : 'Sign in'}
+                                    ? t('auth.signingIn')
+                                    : t('auth.signIn')}
                             </button>
                         </form>
 
                         <p className="auth-switch">
-                            Don&apos;t have an account?{' '}
-                            <Link to="/register">Create one</Link>
+                            {t('auth.noAccount')}{' '}
+                            <Link to="/register">
+                                {t('auth.createOne')}
+                            </Link>
                         </p>
                     </div>
                 </div>

@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { ThemeToggle } from './ThemeToggle'
+import { SkillsManager } from './SkillsManager'
+import { LanguageSelector } from './LanguageSelector'
+import { useLanguage } from '../i18n/language-context'
 
 type ProfileMenuProps = {
     onLogout: () => void
@@ -13,14 +16,14 @@ function getEmailFromAccessToken() {
     const accessToken = localStorage.getItem('accessToken')
 
     if (!accessToken) {
-        return 'Signed-in user'
+        return null
     }
 
     try {
         const encodedPayload = accessToken.split('.')[1]
 
         if (!encodedPayload) {
-            return 'Signed-in user'
+            return null
         }
 
         const normalizedPayload = encodedPayload
@@ -32,18 +35,21 @@ function getEmailFromAccessToken() {
         )
         const payload = JSON.parse(atob(paddedPayload)) as JwtPayload
 
-        return payload.sub ?? 'Signed-in user'
+        return payload.sub ?? null
     } catch {
-        return 'Signed-in user'
+        return null
     }
 }
 
 export function ProfileMenu({ onLogout }: ProfileMenuProps) {
+    const { t } = useLanguage()
     const [isOpen, setIsOpen] = useState(false)
     const menuRef = useRef<HTMLDivElement>(null)
-    const email = getEmailFromAccessToken()
-    const accountName =
-        email === 'Signed-in user' ? 'Account' : email.split('@')[0]
+    const tokenEmail = getEmailFromAccessToken()
+    const email = tokenEmail ?? t('account.fallback')
+    const accountName = tokenEmail
+        ? tokenEmail.split('@')[0]
+        : t('account.name')
     const initial = accountName.slice(0, 1).toUpperCase() || 'U'
 
     useEffect(() => {
@@ -111,9 +117,16 @@ export function ProfileMenu({ onLogout }: ProfileMenuProps) {
                         </div>
                     </div>
 
+                    <SkillsManager />
+
                     <div className="profile-dropdown__row">
-                        <span>Appearance</span>
+                        <span>{t('theme.appearance')}</span>
                         <ThemeToggle />
+                    </div>
+
+                    <div className="profile-dropdown__row">
+                        <span>{t('language.label')}</span>
+                        <LanguageSelector />
                     </div>
 
                     <button
@@ -122,7 +135,7 @@ export function ProfileMenu({ onLogout }: ProfileMenuProps) {
                         role="menuitem"
                         onClick={onLogout}
                     >
-                        Log out
+                        {t('account.logout')}
                     </button>
                 </div>
             )}

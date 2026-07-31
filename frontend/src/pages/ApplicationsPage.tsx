@@ -13,16 +13,28 @@ import {
     type ApplicationStatus,
     type JobApplication,
 } from '../api/applications'
+import {
+    analyzeSkillGap,
+    type SkillGapAnalysis,
+} from '../api/skillGap'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { ProfileMenu } from '../components/ProfileMenu'
+import { SkillGapResult } from '../components/SkillGapResult'
 import { Toast, type ToastKind } from '../components/Toast'
+import { useLanguage } from '../i18n/language-context'
+import type { Language } from '../i18n/translations'
 
 const PAGE_SIZE = 5
-const STATUS_LABELS: Record<ApplicationStatus, string> = {
-    APPLIED: 'Applied',
-    INTERVIEW: 'Interview',
-    OFFER: 'Offer',
-    REJECTED: 'Rejected',
+const APPLICATION_STATUSES: ApplicationStatus[] = [
+    'APPLIED',
+    'INTERVIEW',
+    'OFFER',
+    'REJECTED',
+]
+const LANGUAGE_LOCALES: Record<Language, string> = {
+    en: 'en-US',
+    uk: 'uk-UA',
+    sk: 'sk-SK',
 }
 
 type ToastState = {
@@ -30,26 +42,22 @@ type ToastState = {
     kind: ToastKind
 }
 
-const dateFormatter = new Intl.DateTimeFormat('en-US', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-    timeZone: 'UTC',
-})
-
-const dateTimeFormatter = new Intl.DateTimeFormat('en-US', {
-    day: 'numeric',
-    month: 'short',
-    hour: '2-digit',
-    minute: '2-digit',
-})
-
-function formatDate(value: string) {
-    return dateFormatter.format(new Date(`${value}T00:00:00Z`))
+function formatDate(value: string, locale: string) {
+    return new Intl.DateTimeFormat(locale, {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+        timeZone: 'UTC',
+    }).format(new Date(`${value}T00:00:00Z`))
 }
 
-function formatDateTime(value: string) {
-    return dateTimeFormatter.format(new Date(value))
+function formatDateTime(value: string, locale: string) {
+    return new Intl.DateTimeFormat(locale, {
+        day: 'numeric',
+        month: 'short',
+        hour: '2-digit',
+        minute: '2-digit',
+    }).format(new Date(value))
 }
 
 function toDateTimeLocal(value: string | null) {
@@ -72,6 +80,8 @@ function getErrorMessage(error: unknown, fallback: string) {
 export function ApplicationsPage() {
     const navigate = useNavigate()
     const queryClient = useQueryClient()
+    const { language, t } = useLanguage()
+    const locale = LANGUAGE_LOCALES[language]
 
     const [company, setCompany] = useState('')
     const [position, setPosition] = useState('')
@@ -83,11 +93,18 @@ export function ApplicationsPage() {
     const [followUpAt, setFollowUpAt] = useState('')
     const [notes, setNotes] = useState('')
     const [detailsOpen, setDetailsOpen] = useState(false)
+    const [isFormOpen, setIsFormOpen] = useState(false)
     const [editingApplication, setEditingApplication] =
         useState<JobApplication | null>(null)
     const [applicationToDelete, setApplicationToDelete] =
         useState<JobApplication | null>(null)
     const [toast, setToast] = useState<ToastState | null>(null)
+    const [skillGapResults, setSkillGapResults] = useState<
+        Record<number, SkillGapAnalysis>
+    >({})
+    const [skillGapErrors, setSkillGapErrors] = useState<
+        Record<number, string>
+    >({})
 
     const [searchInput, setSearchInput] = useState('')
     const [search, setSearch] = useState('')
@@ -105,13 +122,37 @@ export function ApplicationsPage() {
                 size: PAGE_SIZE,
             }),
     })
+    const summaryQuery = useQuery({
+        queryKey: ['applications', 'summary'],
+        queryFn: async () => {
+            const [total, ...statusPages] = await Promise.all([
+                getApplications({ page: 0, size: 1 }),
+                ...APPLICATION_STATUSES.map((status) =>
+                    getApplications({ status, page: 0, size: 1 }),
+                ),
+            ])
+
+            return {
+                total: total.totalElements,
+                ...Object.fromEntries(
+                    APPLICATION_STATUSES.map((status, index) => [
+                        status,
+                        statusPages[index].totalElements,
+                    ]),
+                ),
+            } as Record<ApplicationStatus | 'total', number>
+        },
+    })
 
     const createMutation = useMutation({
         mutationFn: createApplication,
         onSuccess: async (savedApplication) => {
             clearForm()
             setToast({
-                message: `${savedApplication.position} at ${savedApplication.company} was added.`,
+                message: t('toast.added', {
+                    position: savedApplication.position,
+                    company: savedApplication.company,
+                }),
                 kind: 'success',
             })
 
@@ -123,7 +164,7 @@ export function ApplicationsPage() {
             setToast({
                 message: getErrorMessage(
                     error,
-                    'Unable to add the application.',
+                    t('error.add'),
                 ),
                 kind: 'error',
             })
@@ -134,7 +175,9 @@ export function ApplicationsPage() {
         onSuccess: async (savedApplication) => {
             clearForm()
             setToast({
-                message: `${savedApplication.position} was updated.`,
+                message: t('toast.updated', {
+                    position: savedApplication.position,
+                }),
                 kind: 'success',
             })
 
@@ -146,7 +189,7 @@ export function ApplicationsPage() {
             setToast({
                 message: getErrorMessage(
                     error,
-                    'Unable to update the application.',
+                    t('error.update'),
                 ),
                 kind: 'error',
             })
@@ -160,8 +203,11 @@ export function ApplicationsPage() {
             setApplicationToDelete(null)
             setToast({
                 message: deletedApplication
-                    ? `${deletedApplication.position} at ${deletedApplication.company} was deleted.`
-                    : 'Application was deleted.',
+                    ? t('toast.deleted', {
+                          position: deletedApplication.position,
+                          company: deletedApplication.company,
+                      })
+                    : t('toast.deletedFallback'),
                 kind: 'success',
             })
 
@@ -173,10 +219,34 @@ export function ApplicationsPage() {
             setToast({
                 message: getErrorMessage(
                     error,
-                    'Unable to delete the application.',
+                    t('error.delete'),
                 ),
                 kind: 'error',
             })
+        },
+    })
+    const skillGapMutation = useMutation({
+        mutationFn: analyzeSkillGap,
+        onMutate: (applicationId) => {
+            setSkillGapErrors((current) => ({
+                ...current,
+                [applicationId]: '',
+            }))
+        },
+        onSuccess: (analysis, applicationId) => {
+            setSkillGapResults((current) => ({
+                ...current,
+                [applicationId]: analysis,
+            }))
+        },
+        onError: (error, applicationId) => {
+            setSkillGapErrors((current) => ({
+                ...current,
+                [applicationId]: getErrorMessage(
+                    error,
+                    t('ai.error'),
+                ),
+            }))
         },
     })
 
@@ -191,6 +261,18 @@ export function ApplicationsPage() {
         setNotes('')
         setDetailsOpen(false)
         setEditingApplication(null)
+        setIsFormOpen(false)
+    }
+
+    function openCreateForm() {
+        clearForm()
+        setIsFormOpen(true)
+
+        requestAnimationFrame(() => {
+            document
+                .getElementById('application-form')
+                ?.scrollIntoView?.({ behavior: 'smooth', block: 'start' })
+        })
     }
 
     function startEditing(application: JobApplication) {
@@ -211,6 +293,13 @@ export function ApplicationsPage() {
             ),
         )
         setEditingApplication(application)
+        setIsFormOpen(true)
+
+        requestAnimationFrame(() => {
+            document
+                .getElementById('application-form')
+                ?.scrollIntoView?.({ behavior: 'smooth', block: 'start' })
+        })
     }
 
     function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -259,6 +348,16 @@ export function ApplicationsPage() {
         setPage(0)
     }
 
+    const totalPages = applicationsQuery.data?.totalPages ?? 0
+    const firstVisiblePage = Math.max(
+        0,
+        Math.min(page - 2, Math.max(totalPages - 5, 0)),
+    )
+    const visiblePages = Array.from(
+        { length: Math.min(totalPages, 5) },
+        (_, index) => firstVisiblePage + index,
+    )
+
     return (
         <main className="dashboard-page">
             <aside className="dashboard-sidebar">
@@ -267,33 +366,47 @@ export function ApplicationsPage() {
                     <span>JobTrack</span>
                 </div>
 
-                <nav className="sidebar-nav" aria-label="Main navigation">
+                <nav
+                    className="sidebar-nav"
+                    aria-label={t('nav.main')}
+                >
                     <a
                         className="sidebar-nav__item sidebar-nav__item--active"
                         href="#applications-list"
                     >
                         <span aria-hidden="true">⌂</span>
-                        Dashboard
+                        {t('nav.dashboard')}
                     </a>
                     <a className="sidebar-nav__item" href="#applications-list">
                         <span aria-hidden="true">▤</span>
-                        Applications
+                        {t('nav.applications')}
                     </a>
-                    <a className="sidebar-nav__item" href="#application-form">
+                    <button
+                        className="sidebar-nav__item"
+                        type="button"
+                        onClick={openCreateForm}
+                    >
                         <span aria-hidden="true">＋</span>
-                        Add application
-                    </a>
+                        {t('nav.addApplication')}
+                    </button>
                     <span className="sidebar-nav__item sidebar-nav__item--muted">
                         <span aria-hidden="true">◫</span>
-                        Calendar
+                        {t('nav.calendar')}
                     </span>
                     <span className="sidebar-nav__item sidebar-nav__item--muted">
                         <span aria-hidden="true">◒</span>
-                        Statistics
+                        {t('nav.statistics')}
                     </span>
                 </nav>
 
-                <ProfileMenu onLogout={logout} />
+                <button
+                    className="sidebar-logout"
+                    type="button"
+                    onClick={logout}
+                >
+                    <span aria-hidden="true">↪</span>
+                    {t('account.logout')}
+                </button>
             </aside>
 
             <section className="dashboard-workspace">
@@ -305,37 +418,116 @@ export function ApplicationsPage() {
                         </div>
 
                         <div className="dashboard-header__title">
-                            <strong>Dashboard</strong>
-                            <span>Track and manage your applications</span>
+                            <strong>{t('nav.dashboard')}</strong>
+                            <span>{t('dashboard.subtitle')}</span>
                         </div>
 
                         <div className="dashboard-header__actions">
-                            <a
-                                className="button button--primary button--small"
-                                href="#application-form"
+                            <form
+                                className="header-filter"
+                                onSubmit={handleFilterSubmit}
                             >
-                                + Add application
-                            </a>
+                                <label className="header-search">
+                                    <span className="sr-only">
+                                        {t('filter.searchLabel')}
+                                    </span>
+                                    <span aria-hidden="true">⌕</span>
+                                    <input
+                                        aria-label={t('filter.searchLabel')}
+                                        value={searchInput}
+                                        onChange={(event) =>
+                                            setSearchInput(event.target.value)
+                                        }
+                                        placeholder={t(
+                                            'filter.searchPlaceholder',
+                                        )}
+                                    />
+                                </label>
+
+                                <label className="header-status">
+                                    <span className="sr-only">
+                                        {t('filter.statusLabel')}
+                                    </span>
+                                    <select
+                                        aria-label={t('filter.statusLabel')}
+                                        value={statusFilter}
+                                        onChange={(event) => {
+                                            setStatusFilter(
+                                                event.target
+                                                    .value as ApplicationStatus | '',
+                                            )
+                                            setPage(0)
+                                        }}
+                                    >
+                                        <option value="">
+                                            {t('filter.allStatuses')}
+                                        </option>
+                                        {APPLICATION_STATUSES.map((status) => (
+                                            <option key={status} value={status}>
+                                                {t(`status.${status}`)}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </label>
+
+                                <button
+                                    className="header-search-submit"
+                                    type="submit"
+                                    aria-label={t('filter.search')}
+                                    title={t('filter.search')}
+                                >
+                                    ↵
+                                </button>
+                            </form>
+
+                            {(search || statusFilter) && (
+                                <button
+                                    className="button button--ghost button--small"
+                                    type="button"
+                                    onClick={clearFilters}
+                                >
+                                    {t('filter.clear')}
+                                </button>
+                            )}
+
+                            <button
+                                className="button button--primary button--small"
+                                type="button"
+                                onClick={openCreateForm}
+                            >
+                                + {t('nav.addApplication')}
+                            </button>
+
+                            <ProfileMenu onLogout={logout} />
                         </div>
                     </div>
                 </header>
 
                 <div className="dashboard-content">
-                    <section className="page-heading">
-                        <div>
-                            <p className="eyebrow">Application overview</p>
-                            <h1>Your opportunities</h1>
-                            <p>
-                                Keep your pipeline clear and every next step in
-                                sight.
-                            </p>
-                        </div>
+                    <section className="dashboard-summary">
+                        <p className="eyebrow">
+                            {t('dashboard.opportunities')}
+                        </p>
 
-                        <div className="total-pill">
-                            <span>Total applications</span>
-                            <strong>
-                                {applicationsQuery.data?.totalElements ?? 0}
-                            </strong>
+                        <div className="summary-cards">
+                            <article className="summary-card summary-card--total">
+                                <strong>
+                                    {summaryQuery.data?.total ?? 0}
+                                </strong>
+                                <span>{t('dashboard.total')}</span>
+                            </article>
+
+                            {APPLICATION_STATUSES.map((status) => (
+                                <article
+                                    className={`summary-card summary-card--${status.toLowerCase()}`}
+                                    key={status}
+                                >
+                                    <strong>
+                                        {summaryQuery.data?.[status] ?? 0}
+                                    </strong>
+                                    <span>{t(`status.${status}`)}</span>
+                                </article>
+                            ))}
                         </div>
                     </section>
 
@@ -344,17 +536,39 @@ export function ApplicationsPage() {
                         className="panel application-form-panel"
                         id="application-form"
                     >
+                        {!isFormOpen ? (
+                            <div className="application-form-prompt">
+                                <span
+                                    className="application-form-prompt__icon"
+                                    aria-hidden="true"
+                                >
+                                    +
+                                </span>
+                                <div>
+                                    <h2>{t('dashboard.logApplication')}</h2>
+                                    <p>{t('dashboard.logApplicationHint')}</p>
+                                </div>
+                                <button
+                                    className="button button--primary"
+                                    type="button"
+                                    onClick={openCreateForm}
+                                >
+                                    + {t('nav.addApplication')}
+                                </button>
+                            </div>
+                        ) : (
+                            <>
                         <div className="panel-heading">
                             <div>
                                 <p className="panel-kicker">
                                     {editingApplication
-                                        ? 'Updating opportunity'
-                                        : 'New opportunity'}
+                                        ? t('form.updatingOpportunity')
+                                        : t('form.newOpportunity')}
                                 </p>
                                 <h2>
                                     {editingApplication
-                                        ? 'Edit application'
-                                        : 'Add application'}
+                                        ? t('form.editTitle')
+                                        : t('form.addTitle')}
                                 </h2>
                             </div>
                             <span
@@ -368,34 +582,43 @@ export function ApplicationsPage() {
                         <form
                             className="application-form"
                             onSubmit={handleSubmit}
+                            aria-label={
+                                editingApplication
+                                    ? t('form.editTitle')
+                                    : t('form.addTitle')
+                            }
                         >
                             <label className="field">
-                                <span>Company</span>
+                                <span>{t('form.company')}</span>
                                 <input
                                     value={company}
                                     onChange={(event) =>
                                         setCompany(event.target.value)
                                     }
-                                    placeholder="e.g. Spotify"
+                                    placeholder={t(
+                                        'form.companyPlaceholder',
+                                    )}
                                     required
                                 />
                             </label>
 
                             <label className="field">
-                                <span>Position</span>
+                                <span>{t('form.position')}</span>
                                 <input
                                     value={position}
                                     onChange={(event) =>
                                         setPosition(event.target.value)
                                     }
-                                    placeholder="e.g. Java Developer"
+                                    placeholder={t(
+                                        'form.positionPlaceholder',
+                                    )}
                                     required
                                 />
                             </label>
 
                             <div className="form-row">
                                 <label className="field">
-                                    <span>Status</span>
+                                    <span>{t('form.status')}</span>
                                     <select
                                         value={currentStatus}
                                         onChange={(event) =>
@@ -406,22 +629,22 @@ export function ApplicationsPage() {
                                         }
                                     >
                                         <option value="APPLIED">
-                                            Applied
+                                            {t('status.APPLIED')}
                                         </option>
                                         <option value="INTERVIEW">
-                                            Interview
+                                            {t('status.INTERVIEW')}
                                         </option>
                                         <option value="OFFER">
-                                            Offer
+                                            {t('status.OFFER')}
                                         </option>
                                         <option value="REJECTED">
-                                            Rejected
+                                            {t('status.REJECTED')}
                                         </option>
                                     </select>
                                 </label>
 
                                 <label className="field">
-                                    <span>Applied date</span>
+                                    <span>{t('form.appliedDate')}</span>
                                     <input
                                         type="date"
                                         value={appliedDate}
@@ -444,20 +667,21 @@ export function ApplicationsPage() {
                             >
                                 <summary>
                                     <span>
-                                        <strong>More details</strong>
+                                        <strong>
+                                            {t('form.moreDetails')}
+                                        </strong>
                                         <small>
-                                            URL, description, reminder and
-                                            notes
+                                            {t('form.moreDetailsHint')}
                                         </small>
                                     </span>
                                     <span className="optional-details__badge">
-                                        Optional
+                                        {t('form.optional')}
                                     </span>
                                 </summary>
 
                                 <div className="optional-details__content">
                                     <label className="field">
-                                        <span>Job URL</span>
+                                        <span>{t('form.jobUrl')}</span>
                                         <input
                                             type="url"
                                             value={jobUrl}
@@ -469,7 +693,9 @@ export function ApplicationsPage() {
                                     </label>
 
                                     <label className="field">
-                                        <span>Job description</span>
+                                        <span>
+                                            {t('form.jobDescription')}
+                                        </span>
                                         <textarea
                                             value={jobDescription}
                                             onChange={(event) =>
@@ -477,13 +703,15 @@ export function ApplicationsPage() {
                                                     event.target.value,
                                                 )
                                             }
-                                            placeholder="Add the key requirements or a short role summary"
+                                            placeholder={t(
+                                                'form.jobDescriptionPlaceholder',
+                                            )}
                                             rows={3}
                                         />
                                     </label>
 
                                     <label className="field">
-                                        <span>Follow-up reminder</span>
+                                        <span>{t('form.followUp')}</span>
                                         <input
                                             type="datetime-local"
                                             value={followUpAt}
@@ -494,18 +722,20 @@ export function ApplicationsPage() {
                                             }
                                         />
                                         <small className="field-hint">
-                                            When would you like to follow up?
+                                            {t('form.followUpHint')}
                                         </small>
                                     </label>
 
                                     <label className="field">
-                                        <span>Private notes</span>
+                                        <span>{t('form.notes')}</span>
                                         <textarea
                                             value={notes}
                                             onChange={(event) =>
                                                 setNotes(event.target.value)
                                             }
-                                            placeholder="Recruiter name, interview notes, next steps..."
+                                            placeholder={t(
+                                                'form.notesPlaceholder',
+                                            )}
                                             rows={3}
                                         />
                                     </label>
@@ -523,21 +753,21 @@ export function ApplicationsPage() {
                                 >
                                     {createMutation.isPending ||
                                     updateMutation.isPending
-                                        ? 'Saving...'
+                                        ? t('form.saving')
                                         : editingApplication
-                                          ? 'Save changes'
-                                          : 'Add application'}
+                                          ? t('form.save')
+                                          : t('form.addTitle')}
                                 </button>
 
-                                {editingApplication && (
-                                    <button
-                                        className="button button--secondary"
-                                        type="button"
-                                        onClick={clearForm}
-                                    >
-                                        Cancel
-                                    </button>
-                                )}
+                                <button
+                                    className="button button--secondary"
+                                    type="button"
+                                    onClick={clearForm}
+                                >
+                                    {editingApplication
+                                        ? t('form.cancel')
+                                        : t('form.close')}
+                                </button>
                             </div>
 
                             {createMutation.error && (
@@ -558,6 +788,8 @@ export function ApplicationsPage() {
                                 </p>
                             )}
                         </form>
+                            </>
+                        )}
                     </aside>
 
                     <section
@@ -567,74 +799,18 @@ export function ApplicationsPage() {
                         <div className="panel-heading panel-heading--list">
                             <div>
                                 <p className="panel-kicker">
-                                    Your pipeline
+                                    {t('filter.pipeline')}
                                 </p>
-                                <h2>Tracked opportunities</h2>
+                                <h2>{t('filter.tracked')}</h2>
                             </div>
                             <span className="results-count">
-                                {applicationsQuery.data?.totalElements ?? 0}{' '}
-                                results
+                                {t('filter.results', {
+                                    count:
+                                        applicationsQuery.data
+                                            ?.totalElements ?? 0,
+                                })}
                             </span>
                         </div>
-
-                        <form
-                            className="filter-bar"
-                            onSubmit={handleFilterSubmit}
-                        >
-                            <label className="field field--search">
-                                <span className="sr-only">
-                                    Search applications
-                                </span>
-                                <input
-                                    value={searchInput}
-                                    onChange={(event) =>
-                                        setSearchInput(event.target.value)
-                                    }
-                                    placeholder="Search company or position"
-                                />
-                            </label>
-
-                            <label className="field field--filter">
-                                <span className="sr-only">
-                                    Filter by status
-                                </span>
-                                <select
-                                    value={statusFilter}
-                                    onChange={(event) => {
-                                        setStatusFilter(
-                                            event.target
-                                                .value as ApplicationStatus | '',
-                                        )
-                                        setPage(0)
-                                    }}
-                                >
-                                    <option value="">All statuses</option>
-                                    <option value="APPLIED">Applied</option>
-                                    <option value="INTERVIEW">
-                                        Interview
-                                    </option>
-                                    <option value="OFFER">Offer</option>
-                                    <option value="REJECTED">
-                                        Rejected
-                                    </option>
-                                </select>
-                            </label>
-
-                            <button
-                                className="button button--primary"
-                                type="submit"
-                            >
-                                Search
-                            </button>
-
-                            <button
-                                className="button button--ghost"
-                                type="button"
-                                onClick={clearFilters}
-                            >
-                                Clear
-                            </button>
-                        </form>
 
                         {applicationsQuery.isPending && (
                             <div className="state-card" role="status">
@@ -642,7 +818,12 @@ export function ApplicationsPage() {
                                     className="spinner"
                                     aria-hidden="true"
                                 />
-                                <p>Loading applications...</p>
+                                <p>{t('applications.loading')}</p>
+                                <div className="loading-lines" aria-hidden="true">
+                                    <span />
+                                    <span />
+                                    <span />
+                                </div>
                             </div>
                         )}
 
@@ -663,11 +844,15 @@ export function ApplicationsPage() {
                                 >
                                     ◎
                                 </span>
-                                <h3>No applications found</h3>
-                                <p>
-                                    Add your first opportunity or adjust the
-                                    current filters.
-                                </p>
+                                <h3>{t('applications.empty')}</h3>
+                                <p>{t('applications.emptyHint')}</p>
+                                <button
+                                    className="button button--ghost-purple button--small"
+                                    type="button"
+                                    onClick={openCreateForm}
+                                >
+                                    + {t('nav.addApplication')}
+                                </button>
                             </div>
                         )}
 
@@ -704,12 +889,9 @@ export function ApplicationsPage() {
                                                         <span
                                                             className={`status-badge status-badge--${application.currentStatus.toLowerCase()}`}
                                                         >
-                                                            {
-                                                                STATUS_LABELS[
-                                                                    application
-                                                                        .currentStatus
-                                                                ]
-                                                            }
+                                                            {t(
+                                                                `status.${application.currentStatus}`,
+                                                            )}
                                                         </span>
                                                     </div>
 
@@ -727,7 +909,9 @@ export function ApplicationsPage() {
                                                             {application.notes && (
                                                                 <p className="application-note">
                                                                     <span>
-                                                                        Note
+                                                                        {t(
+                                                                            'applications.note',
+                                                                        )}
                                                                     </span>
                                                                     {
                                                                         application.notes
@@ -737,11 +921,42 @@ export function ApplicationsPage() {
                                                         </div>
                                                     )}
 
+                                                    {skillGapErrors[
+                                                        application.id
+                                                    ] && (
+                                                        <p
+                                                            className="skill-gap-error"
+                                                            role="alert"
+                                                        >
+                                                            {
+                                                                skillGapErrors[
+                                                                    application
+                                                                        .id
+                                                                ]
+                                                            }
+                                                        </p>
+                                                    )}
+
+                                                    {skillGapResults[
+                                                        application.id
+                                                    ] && (
+                                                        <SkillGapResult
+                                                            analysis={
+                                                                skillGapResults[
+                                                                    application
+                                                                        .id
+                                                                ]
+                                                            }
+                                                        />
+                                                    )}
+
                                                     <div className="application-card__footer">
                                                         <div className="application-meta">
                                                             <p className="application-date">
                                                                 <span>
-                                                                    Applied
+                                                                    {t(
+                                                                        'applications.applied',
+                                                                    )}
                                                                 </span>
                                                                 <time
                                                                     dateTime={
@@ -750,6 +965,7 @@ export function ApplicationsPage() {
                                                                 >
                                                                     {formatDate(
                                                                         application.appliedDate,
+                                                                        locale,
                                                                     )}
                                                                 </time>
                                                             </p>
@@ -757,8 +973,9 @@ export function ApplicationsPage() {
                                                             {application.followUpAt && (
                                                                 <p className="application-date application-date--follow-up">
                                                                     <span>
-                                                                        Follow
-                                                                        up
+                                                                        {t(
+                                                                            'applications.followUp',
+                                                                        )}
                                                                     </span>
                                                                     <time
                                                                         dateTime={
@@ -767,6 +984,7 @@ export function ApplicationsPage() {
                                                                     >
                                                                         {formatDateTime(
                                                                             application.followUpAt,
+                                                                            locale,
                                                                         )}
                                                                     </time>
                                                                 </p>
@@ -774,6 +992,46 @@ export function ApplicationsPage() {
                                                         </div>
 
                                                         <div className="card-actions">
+                                                            <button
+                                                                className="button button--small button--ai"
+                                                                type="button"
+                                                                title={
+                                                                    application.jobDescription?.trim()
+                                                                        ? t(
+                                                                              'ai.titleReady',
+                                                                          )
+                                                                        : t(
+                                                                              'ai.titleMissing',
+                                                                          )
+                                                                }
+                                                                disabled={
+                                                                    !application.jobDescription?.trim() ||
+                                                                    skillGapMutation.isPending
+                                                                }
+                                                                onClick={() =>
+                                                                    skillGapMutation.mutate(
+                                                                        application.id,
+                                                                    )
+                                                                }
+                                                            >
+                                                                {skillGapMutation.isPending &&
+                                                                skillGapMutation.variables ===
+                                                                    application.id
+                                                                    ? t(
+                                                                          'ai.analyzing',
+                                                                      )
+                                                                    : skillGapResults[
+                                                                            application
+                                                                                .id
+                                                                        ]
+                                                                      ? t(
+                                                                            'ai.again',
+                                                                        )
+                                                                      : t(
+                                                                            'ai.button',
+                                                                        )}
+                                                            </button>
+
                                                             {application.jobUrl && (
                                                                 <a
                                                                     className="button button--small button--link"
@@ -783,7 +1041,9 @@ export function ApplicationsPage() {
                                                                     target="_blank"
                                                                     rel="noreferrer"
                                                                 >
-                                                                    View job
+                                                                    {t(
+                                                                        'applications.viewJob',
+                                                                    )}
                                                                 </a>
                                                             )}
 
@@ -796,7 +1056,9 @@ export function ApplicationsPage() {
                                                                     )
                                                                 }
                                                             >
-                                                                Edit
+                                                                {t(
+                                                                    'applications.edit',
+                                                                )}
                                                             </button>
                                                             <button
                                                                 className="button button--small button--danger"
@@ -810,7 +1072,9 @@ export function ApplicationsPage() {
                                                                     )
                                                                 }
                                                             >
-                                                                Delete
+                                                                {t(
+                                                                    'applications.delete',
+                                                                )}
                                                             </button>
                                                         </div>
                                                     </div>
@@ -825,28 +1089,31 @@ export function ApplicationsPage() {
                             applicationsQuery.data.totalElements > 0 && (
                                 <nav
                                     className="pagination"
-                                    aria-label="Applications pagination"
+                                    aria-label={t(
+                                        'applications.pagination',
+                                    )}
                                 >
-                                    <p>
-                                        Showing page{' '}
-                                        <strong>
-                                            {applicationsQuery.data.page + 1}
-                                        </strong>{' '}
-                                        of{' '}
-                                        <strong>
-                                            {Math.max(
+                                    <p className="pagination__summary">
+                                        {t('applications.page', {
+                                            page:
+                                                applicationsQuery.data
+                                                    .page + 1,
+                                            total: Math.max(
                                                 applicationsQuery.data
                                                     .totalPages,
                                                 1,
-                                            )}
-                                        </strong>
+                                            ),
+                                        })}
                                     </p>
 
                                     <div className="pagination__actions">
                                         <button
-                                            className="button button--small button--secondary"
+                                            className="pagination__button"
                                             type="button"
                                             disabled={page === 0}
+                                            aria-label={t(
+                                                'applications.previous',
+                                            )}
                                             onClick={() =>
                                                 setPage(
                                                     (currentPage) =>
@@ -854,16 +1121,42 @@ export function ApplicationsPage() {
                                                 )
                                             }
                                         >
-                                            Previous
+                                            ‹
                                         </button>
+
+                                        {visiblePages.map((pageNumber) => (
+                                            <button
+                                                className={`pagination__button ${
+                                                    pageNumber === page
+                                                        ? 'pagination__button--active'
+                                                        : ''
+                                                }`}
+                                                type="button"
+                                                key={pageNumber}
+                                                aria-current={
+                                                    pageNumber === page
+                                                        ? 'page'
+                                                        : undefined
+                                                }
+                                                onClick={() =>
+                                                    setPage(pageNumber)
+                                                }
+                                            >
+                                                {pageNumber + 1}
+                                            </button>
+                                        ))}
+
                                         <button
-                                            className="button button--small button--secondary"
+                                            className="pagination__button"
                                             type="button"
                                             disabled={
                                                 page + 1 >=
                                                 applicationsQuery.data
                                                     .totalPages
                                             }
+                                            aria-label={t(
+                                                'applications.next',
+                                            )}
                                             onClick={() =>
                                                 setPage(
                                                     (currentPage) =>
@@ -871,7 +1164,7 @@ export function ApplicationsPage() {
                                                 )
                                             }
                                         >
-                                            Next
+                                            ›
                                         </button>
                                     </div>
                                 </nav>
@@ -892,13 +1185,18 @@ export function ApplicationsPage() {
 
             <ConfirmDialog
                 open={applicationToDelete !== null}
-                title="Delete this application?"
+                title={t('dialog.deleteTitle')}
                 description={
                     applicationToDelete
-                        ? `${applicationToDelete.position} at ${applicationToDelete.company} will be permanently removed.`
+                        ? t('dialog.deleteDescription', {
+                              position:
+                                  applicationToDelete.position,
+                              company:
+                                  applicationToDelete.company,
+                          })
                         : ''
                 }
-                confirmLabel="Delete application"
+                confirmLabel={t('dialog.deleteConfirm')}
                 isPending={deleteMutation.isPending}
                 onCancel={() => setApplicationToDelete(null)}
                 onConfirm={() => {

@@ -11,6 +11,10 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import com.bahen.jobtracker.user.EmailAlreadyExistsException;
 import org.springframework.security.core.AuthenticationException;
+import com.bahen.jobtracker.user.UserSkillAlreadyExistsException;
+import com.bahen.jobtracker.user.UserSkillNotFoundException;
+import com.bahen.jobtracker.skillgap.JobDescriptionMissingException;
+import com.bahen.jobtracker.skillgap.analyzer.AiAnalysisException;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -129,6 +133,62 @@ public class GlobalExceptionHandler {
         );
 
         problem.setTitle("Authentication failed");
+
+        return problem;
+    }
+
+    @ExceptionHandler(UserSkillAlreadyExistsException.class)
+    public ProblemDetail handleSkillAlreadyExists(
+            UserSkillAlreadyExistsException exception
+    ) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.CONFLICT,
+                exception.getMessage()
+        );
+
+        problem.setTitle("Skill already exists");
+
+        return problem;
+    }
+
+    @ExceptionHandler(UserSkillNotFoundException.class)
+    public ProblemDetail handleSkillNotFound(
+            UserSkillNotFoundException exception
+    ) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.NOT_FOUND,
+                exception.getMessage()
+        );
+
+        problem.setTitle("Skill not found");
+
+        return problem;
+    }
+
+    @ExceptionHandler(JobDescriptionMissingException.class)
+    public ProblemDetail handleMissingJobDescription(
+            JobDescriptionMissingException exception
+    ) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.BAD_REQUEST,
+                exception.getMessage()
+        );
+
+        problem.setTitle("Job description is missing");
+
+        return problem;
+    }
+
+    @ExceptionHandler(AiAnalysisException.class)
+    public ProblemDetail handleAiAnalysisFailure(
+            AiAnalysisException exception
+    ) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.SERVICE_UNAVAILABLE,
+                exception.getMessage()
+        );
+
+        problem.setTitle("AI analysis unavailable");
 
         return problem;
     }

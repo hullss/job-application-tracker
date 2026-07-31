@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { useLanguage } from '../i18n/language-context'
 
 export type ToastKind = 'success' | 'error'
 
@@ -13,6 +14,7 @@ export function Toast({
     kind = 'success',
     onDismiss,
 }: ToastProps) {
+    const { t } = useLanguage()
     useEffect(() => {
         const timeoutId = window.setTimeout(onDismiss, 3500)
 
@@ -31,7 +33,7 @@ export function Toast({
                 className="toast__close"
                 type="button"
                 onClick={onDismiss}
-                aria-label="Dismiss notification"
+                aria-label={t('toast.dismiss')}
             >
                 ×
             </button>

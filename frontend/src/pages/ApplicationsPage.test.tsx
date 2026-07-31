@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import {
     QueryClient,
@@ -14,6 +14,10 @@ import {
     type ApplicationPage,
     type JobApplication,
 } from '../api/applications'
+import {
+    analyzeSkillGap,
+    type SkillGapAnalysis,
+} from '../api/skillGap'
 import { ApplicationsPage } from './ApplicationsPage'
 
 vi.mock('../api/applications', () => ({
@@ -23,10 +27,15 @@ vi.mock('../api/applications', () => ({
     updateApplication: vi.fn(),
 }))
 
+vi.mock('../api/skillGap', () => ({
+    analyzeSkillGap: vi.fn(),
+}))
+
 const mockedCreateApplication = vi.mocked(createApplication)
 const mockedDeleteApplication = vi.mocked(deleteApplication)
 const mockedGetApplications = vi.mocked(getApplications)
 const mockedUpdateApplication = vi.mocked(updateApplication)
+const mockedAnalyzeSkillGap = vi.mocked(analyzeSkillGap)
 
 const application: JobApplication = {
     id: 1,
@@ -40,6 +49,26 @@ const application: JobApplication = {
     notes: 'Applied through the company website',
     createdAt: '2026-07-26T10:00:00Z',
     updatedAt: '2026-07-26T10:00:00Z',
+}
+
+const skillGapAnalysis: SkillGapAnalysis = {
+    requirements: {
+        requiredSkills: [
+            'Java',
+            'Spring Boot',
+            'PostgreSQL',
+            'Docker',
+        ],
+        niceToHaveSkills: [],
+        seniorityLevel: 'NOT_SPECIFIED',
+        englishLevel: 'NOT_SPECIFIED',
+    },
+    match: {
+        matchPercentage: 50,
+        matchedSkills: ['Java', 'PostgreSQL'],
+        missingSkills: ['Spring Boot', 'Docker'],
+        matchedNiceToHaveSkills: [],
+    },
 }
 
 function page(content: JobApplication[] = []): ApplicationPage {
@@ -88,6 +117,7 @@ describe('ApplicationsPage', () => {
         mockedDeleteApplication.mockReset()
         mockedGetApplications.mockReset()
         mockedUpdateApplication.mockReset()
+        mockedAnalyzeSkillGap.mockReset()
 
         mockedGetApplications.mockResolvedValue(page())
 
@@ -136,6 +166,11 @@ describe('ApplicationsPage', () => {
         renderApplicationsPage()
 
         await screen.findByText('No applications found')
+        await user.click(
+            screen.getAllByRole('button', {
+                name: 'Add application',
+            })[0],
+        )
         await user.type(screen.getByLabelText('Company'), '  Acme  ')
         await user.type(
             screen.getByLabelText('Position'),
@@ -145,8 +180,11 @@ describe('ApplicationsPage', () => {
             screen.getByLabelText('Applied date'),
             '2026-07-26',
         )
+        const applicationForm = screen.getByRole('form', {
+            name: 'Add application',
+        })
         await user.click(
-            screen.getByRole('button', {
+            within(applicationForm).getByRole('button', {
                 name: 'Add application',
             }),
         )
@@ -287,5 +325,32 @@ describe('ApplicationsPage', () => {
                 'Java Developer at Acme was deleted.',
             ),
         ).toBeInTheDocument()
+    })
+
+    it('analyzes an application and displays the skill gap', async () => {
+        mockedGetApplications.mockResolvedValue(page([application]))
+        mockedAnalyzeSkillGap.mockResolvedValue(skillGapAnalysis)
+
+        const user = userEvent.setup()
+        renderApplicationsPage()
+
+        await screen.findByRole('heading', {
+            name: 'Java Developer',
+        })
+        await user.click(
+            screen.getByRole('button', { name: 'AI match' }),
+        )
+
+        await waitFor(() => {
+            expect(mockedAnalyzeSkillGap).toHaveBeenCalledWith(
+                application.id,
+                expect.anything(),
+            )
+        })
+
+        expect(await screen.findByText('50%')).toBeInTheDocument()
+        expect(screen.getByText('Promising match')).toBeInTheDocument()
+        expect(screen.getByText('Spring Boot')).toBeInTheDocument()
+        expect(screen.getByText('Docker')).toBeInTheDocument()
     })
 })

@@ -2,9 +2,12 @@ import { useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { login, register } from '../api/auth'
 import { ThemeToggle } from '../components/ThemeToggle'
+import { LanguageSelector } from '../components/LanguageSelector'
+import { useLanguage } from '../i18n/language-context'
 
 export function RegisterPage() {
     const navigate = useNavigate()
+    const { t } = useLanguage()
 
     const [email, setEmail] = useState('')
     const [password, setPassword] = useState('')
@@ -17,7 +20,7 @@ export function RegisterPage() {
         setError(null)
 
         if (password !== confirmPassword) {
-            setError('Passwords do not match')
+            setError(t('auth.passwordMismatch'))
             return
         }
 
@@ -38,7 +41,7 @@ export function RegisterPage() {
             setError(
                 caughtError instanceof Error
                     ? caughtError.message
-                    : 'Unable to create account',
+                    : t('auth.unableCreate'),
             )
         } finally {
             setIsSubmitting(false)
@@ -56,13 +59,10 @@ export function RegisterPage() {
 
                     <div className="auth-spotlight__content">
                         <p className="eyebrow eyebrow--light">
-                            Create your career space
+                            {t('auth.registerEyebrow')}
                         </p>
-                        <h1>Start organized. Stay confident.</h1>
-                        <p>
-                            Build a clear application pipeline and turn every
-                            next step into visible progress.
-                        </p>
+                        <h1>{t('auth.registerHero')}</h1>
+                        <p>{t('auth.registerHeroText')}</p>
                     </div>
 
                     <div
@@ -77,24 +77,24 @@ export function RegisterPage() {
                     <div className="auth-quote">
                         <span aria-hidden="true">✦</span>
                         <p>
-                            Your opportunities, notes, dates, and decisions —
-                            together from day one.
+                            {t('auth.registerQuote')}
                         </p>
                     </div>
                 </div>
 
                 <div className="auth-panel">
                     <div className="auth-panel__theme">
+                        <LanguageSelector />
                         <ThemeToggle />
                     </div>
 
                     <div className="auth-panel__content">
                         <div className="auth-heading">
-                            <p className="eyebrow">Get started</p>
-                            <h2>Create your account</h2>
-                            <p>
-                                Set up your private job search workspace.
+                            <p className="eyebrow">
+                                {t('auth.getStarted')}
                             </p>
+                            <h2>{t('auth.createAccountTitle')}</h2>
+                            <p>{t('auth.createAccountSubtitle')}</p>
                         </div>
 
                         <form
@@ -102,7 +102,7 @@ export function RegisterPage() {
                             onSubmit={handleSubmit}
                         >
                             <label className="field">
-                                <span>Email address</span>
+                                <span>{t('auth.email')}</span>
                                 <input
                                     type="email"
                                     value={email}
@@ -116,7 +116,7 @@ export function RegisterPage() {
                             </label>
 
                             <label className="field">
-                                <span>Password</span>
+                                <span>{t('auth.password')}</span>
                                 <input
                                     type="password"
                                     value={password}
@@ -124,7 +124,7 @@ export function RegisterPage() {
                                         setPassword(event.target.value)
                                     }
                                     autoComplete="new-password"
-                                    placeholder="At least 8 characters"
+                                    placeholder={t('auth.passwordMin')}
                                     minLength={8}
                                     maxLength={72}
                                     required
@@ -132,7 +132,9 @@ export function RegisterPage() {
                             </label>
 
                             <label className="field">
-                                <span>Confirm password</span>
+                                <span>
+                                    {t('auth.confirmPassword')}
+                                </span>
                                 <input
                                     type="password"
                                     value={confirmPassword}
@@ -140,7 +142,9 @@ export function RegisterPage() {
                                         setConfirmPassword(event.target.value)
                                     }
                                     autoComplete="new-password"
-                                    placeholder="Repeat your password"
+                                    placeholder={t(
+                                        'auth.repeatPassword',
+                                    )}
                                     required
                                 />
                             </label>
@@ -157,14 +161,16 @@ export function RegisterPage() {
                                 disabled={isSubmitting}
                             >
                                 {isSubmitting
-                                    ? 'Creating account...'
-                                    : 'Create account'}
+                                    ? t('auth.creatingAccount')
+                                    : t('auth.createAccount')}
                             </button>
                         </form>
 
                         <p className="auth-switch">
-                            Already have an account?{' '}
-                            <Link to="/login">Sign in</Link>
+                            {t('auth.haveAccount')}{' '}
+                            <Link to="/login">
+                                {t('auth.signIn')}
+                            </Link>
                         </p>
                     </div>
                 </div>

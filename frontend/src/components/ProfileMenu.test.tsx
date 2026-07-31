@@ -3,6 +3,10 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { ProfileMenu } from './ProfileMenu'
 
+vi.mock('./SkillsManager', () => ({
+    SkillsManager: () => <div>Profile skills</div>,
+}))
+
 function tokenFor(email: string) {
     const payload = btoa(JSON.stringify({ sub: email }))
 
