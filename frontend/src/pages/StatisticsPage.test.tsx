@@ -100,6 +100,9 @@ describe('StatisticsPage', () => {
         expect(
             screen.getByRole('heading', { name: 'Follow-up overview' }),
         ).toBeInTheDocument()
+        expect(
+            screen.getByLabelText('2026-07-15: 9'),
+        ).toBeInTheDocument()
     })
 
     it('loads a new overview when the period changes', async () => {
@@ -116,5 +119,20 @@ describe('StatisticsPage', () => {
                 'LAST_3_MONTHS',
             )
         })
+    })
+
+    it('opens filtered applications after two search characters', async () => {
+        const user = userEvent.setup()
+        renderStatisticsPage()
+
+        await screen.findByText('Applications over time')
+        await user.type(
+            screen.getByPlaceholderText('Search company or position'),
+            'Ac',
+        )
+
+        expect(
+            await screen.findByRole('heading', { name: 'Applications' }),
+        ).toBeInTheDocument()
     })
 })

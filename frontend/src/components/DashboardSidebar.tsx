@@ -1,3 +1,11 @@
+import {
+    BriefcaseBusiness,
+    CalendarDays,
+    ChartNoAxesCombined,
+    LayoutDashboard,
+    LogOut,
+    Plus,
+} from 'lucide-react'
 import { Link } from 'react-router'
 import { useLanguage } from '../i18n/language-context'
 
@@ -32,7 +40,7 @@ export function DashboardSidebar({
                     }`}
                     to="/applications"
                 >
-                    <span aria-hidden="true">⌂</span>
+                    <LayoutDashboard aria-hidden="true" />
                     {t('nav.dashboard')}
                 </Link>
 
@@ -40,7 +48,7 @@ export function DashboardSidebar({
                     className="sidebar-nav__item"
                     to="/applications#applications-list"
                 >
-                    <span aria-hidden="true">▤</span>
+                    <BriefcaseBusiness aria-hidden="true" />
                     {t('nav.applications')}
                 </Link>
 
@@ -49,7 +57,7 @@ export function DashboardSidebar({
                     type="button"
                     onClick={onAddApplication}
                 >
-                    <span aria-hidden="true">＋</span>
+                    <Plus aria-hidden="true" />
                     {t('nav.addApplication')}
                 </button>
 
@@ -61,7 +69,7 @@ export function DashboardSidebar({
                     }`}
                     to="/calendar"
                 >
-                    <span aria-hidden="true">◫</span>
+                    <CalendarDays aria-hidden="true" />
                     {t('nav.calendar')}
                 </Link>
 
@@ -73,7 +81,7 @@ export function DashboardSidebar({
                     }`}
                     to="/statistics"
                 >
-                    <span aria-hidden="true">◒</span>
+                    <ChartNoAxesCombined aria-hidden="true" />
                     {t('nav.statistics')}
                 </Link>
             </nav>
@@ -83,7 +91,7 @@ export function DashboardSidebar({
                 type="button"
                 onClick={onLogout}
             >
-                <span aria-hidden="true">↪</span>
+                <LogOut aria-hidden="true" />
                 {t('account.logout')}
             </button>
         </aside>

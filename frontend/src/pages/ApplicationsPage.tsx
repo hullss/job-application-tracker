@@ -1,4 +1,4 @@
-import {useState, type FormEvent} from 'react'
+import {useEffect, useState, type FormEvent} from 'react'
 import {
     useMutation,
     useQuery,
@@ -18,6 +18,7 @@ import {
     type SkillGapAnalysis,
 } from '../api/skillGap'
 import { ConfirmDialog } from '../components/ConfirmDialog'
+import { DateTimePicker } from '../components/DateTimePicker'
 import { DashboardSidebar } from '../components/DashboardSidebar'
 import { ProfileMenu } from '../components/ProfileMenu'
 import { SkillGapResult } from '../components/SkillGapResult'
@@ -127,6 +128,18 @@ export function ApplicationsPage() {
     const [statusFilter, setStatusFilter] =
         useState<ApplicationStatus | ''>(initialStatus)
     const [page, setPage] = useState(0)
+
+    useEffect(() => {
+        const normalizedSearch = searchInput.trim()
+        const nextSearch =
+            normalizedSearch.length >= 2 ? normalizedSearch : ''
+        const timeoutId = window.setTimeout(() => {
+            setPage(0)
+            setSearch(nextSearch)
+        }, 300)
+
+        return () => window.clearTimeout(timeoutId)
+    }, [searchInput])
 
     const applicationsQuery = useQuery({
         queryKey: ['applications', search, statusFilter, page],
@@ -354,7 +367,10 @@ export function ApplicationsPage() {
     function handleFilterSubmit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault()
         setPage(0)
-        setSearch(searchInput.trim())
+        const normalizedSearch = searchInput.trim()
+        setSearch(
+            normalizedSearch.length >= 2 ? normalizedSearch : '',
+        )
     }
 
     function clearFilters() {
@@ -443,14 +459,6 @@ export function ApplicationsPage() {
                                     </select>
                                 </label>
 
-                                <button
-                                    className="header-search-submit"
-                                    type="submit"
-                                    aria-label={t('filter.search')}
-                                    title={t('filter.search')}
-                                >
-                                    ↵
-                                </button>
                             </form>
 
                             {(search || statusFilter) && (
@@ -616,19 +624,19 @@ export function ApplicationsPage() {
                                     </select>
                                 </label>
 
-                                <label className="field">
+                                <div className="field">
                                     <span>{t('form.appliedDate')}</span>
-                                    <input
-                                        type="date"
+                                    <DateTimePicker
+                                        mode="date"
                                         value={appliedDate}
-                                        onChange={(event) =>
-                                            setAppliedDate(
-                                                event.target.value,
-                                            )
-                                        }
+                                        onChange={setAppliedDate}
+                                        ariaLabel={t('form.appliedDate')}
+                                        placeholder={t(
+                                            'picker.selectDate',
+                                        )}
                                         required
                                     />
-                                </label>
+                                </div>
                             </div>
 
                             <details
@@ -683,21 +691,20 @@ export function ApplicationsPage() {
                                         />
                                     </label>
 
-                                    <label className="field">
+                                    <div className="field">
                                         <span>{t('form.followUp')}</span>
-                                        <input
-                                            type="datetime-local"
+                                        <DateTimePicker
                                             value={followUpAt}
-                                            onChange={(event) =>
-                                                setFollowUpAt(
-                                                    event.target.value,
-                                                )
-                                            }
+                                            onChange={setFollowUpAt}
+                                            ariaLabel={t('form.followUp')}
+                                            placeholder={t(
+                                                'picker.selectDateTime',
+                                            )}
                                         />
                                         <small className="field-hint">
                                             {t('form.followUpHint')}
                                         </small>
-                                    </label>
+                                    </div>
 
                                     <label className="field">
                                         <span>{t('form.notes')}</span>
@@ -721,7 +728,8 @@ export function ApplicationsPage() {
                                     type="submit"
                                     disabled={
                                         createMutation.isPending ||
-                                        updateMutation.isPending
+                                        updateMutation.isPending ||
+                                        !appliedDate
                                     }
                                 >
                                     {createMutation.isPending ||

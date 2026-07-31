@@ -176,10 +176,17 @@ describe('ApplicationsPage', () => {
             screen.getByLabelText('Position'),
             '  Java Developer  ',
         )
-        await user.type(
-            screen.getByLabelText('Applied date'),
-            '2026-07-26',
+        await user.click(
+            screen.getByRole('button', { name: 'Applied date' }),
         )
+        await user.click(screen.getByRole('button', { name: 'Today' }))
+        await user.click(screen.getByRole('button', { name: 'Apply' }))
+        const today = new Date()
+        const selectedDate = [
+            today.getFullYear(),
+            String(today.getMonth() + 1).padStart(2, '0'),
+            String(today.getDate()).padStart(2, '0'),
+        ].join('-')
         const applicationForm = screen.getByRole('form', {
             name: 'Add application',
         })
@@ -197,7 +204,7 @@ describe('ApplicationsPage', () => {
                     jobUrl: null,
                     jobDescription: null,
                     currentStatus: 'APPLIED',
-                    appliedDate: '2026-07-26',
+                    appliedDate: selectedDate,
                     followUpAt: null,
                     notes: null,
                 },
@@ -224,10 +231,6 @@ describe('ApplicationsPage', () => {
             screen.getByLabelText('Filter by status'),
             'INTERVIEW',
         )
-        await user.click(
-            screen.getByRole('button', { name: 'Search' }),
-        )
-
         await waitFor(() => {
             expect(mockedGetApplications).toHaveBeenCalledWith({
                 search: 'Java',

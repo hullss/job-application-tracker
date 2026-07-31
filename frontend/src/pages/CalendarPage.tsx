@@ -16,6 +16,7 @@ import {
 } from '../api/events'
 import { getApplications } from '../api/applications'
 import { DashboardSidebar } from '../components/DashboardSidebar'
+import { DateTimePicker } from '../components/DateTimePicker'
 import { ProfileMenu } from '../components/ProfileMenu'
 import { Toast, type ToastKind } from '../components/Toast'
 import { useLanguage } from '../i18n/language-context'
@@ -34,6 +35,13 @@ const EVENT_TYPES: CalendarEventType[] = [
     'DEADLINE',
     'OTHER',
 ]
+
+const EVENT_TYPE_ICONS: Record<CalendarEventType, string> = {
+    INTERVIEW: '◆',
+    FOLLOW_UP: '↗',
+    DEADLINE: '◷',
+    OTHER: '•',
+}
 
 const LANGUAGE_LOCALES: Record<Language, string> = {
     en: 'en-US',
@@ -435,21 +443,33 @@ export function CalendarPage() {
                         aria-label={t('calendar.summary')}
                     >
                         <article className="calendar-kpi calendar-kpi--today">
+                            <span className="calendar-kpi__icon" aria-hidden="true">
+                                ◉
+                            </span>
                             <strong>{todayEvents.length}</strong>
                             <span>{t('calendar.today')}</span>
                             <small>{t('calendar.todayHint')}</small>
                         </article>
                         <article className="calendar-kpi calendar-kpi--week">
+                            <span className="calendar-kpi__icon" aria-hidden="true">
+                                ◫
+                            </span>
                             <strong>{weekEvents.length}</strong>
                             <span>{t('calendar.thisWeek')}</span>
                             <small>{t('calendar.thisWeekHint')}</small>
                         </article>
                         <article className="calendar-kpi calendar-kpi--interview">
+                            <span className="calendar-kpi__icon" aria-hidden="true">
+                                ◆
+                            </span>
                             <strong>{upcomingInterviews.length}</strong>
                             <span>{t('calendar.upcomingInterviews')}</span>
                             <small>{t('calendar.interviewsHint')}</small>
                         </article>
                         <article className="calendar-kpi calendar-kpi--overdue">
+                            <span className="calendar-kpi__icon" aria-hidden="true">
+                                !
+                            </span>
                             <strong>{overdueEvents.length}</strong>
                             <span>{t('calendar.overdue')}</span>
                             <small>{t('calendar.overdueHint')}</small>
@@ -688,6 +708,16 @@ export function CalendarPage() {
                                                     <small>
                                                         {event.position}
                                                     </small>
+                                                    <small className="agenda-event__type">
+                                                        {
+                                                            EVENT_TYPE_ICONS[
+                                                                event.type
+                                                            ]
+                                                        }{' '}
+                                                        {t(
+                                                            `calendar.type.${event.type}`,
+                                                        )}
+                                                    </small>
                                                 </span>
                                                 <span className="agenda-event__date">
                                                     <time>
@@ -742,7 +772,15 @@ export function CalendarPage() {
                         aria-labelledby="event-details-title"
                         onMouseDown={(event) => event.stopPropagation()}
                     >
-                        <div className="calendar-modal__heading">
+                        <div
+                            className={`calendar-modal__heading calendar-modal__heading--${selectedEvent.type.toLowerCase()}`}
+                        >
+                            <span
+                                className="calendar-modal__event-icon"
+                                aria-hidden="true"
+                            >
+                                {EVENT_TYPE_ICONS[selectedEvent.type]}
+                            </span>
                             <div>
                                 <p className="panel-kicker">
                                     {t(
@@ -796,7 +834,9 @@ export function CalendarPage() {
                                         )
                                     }
                                 >
-                                    {t('calendar.markComplete')}
+                                    {completeMutation.isPending
+                                        ? t('calendar.completing')
+                                        : t('calendar.markComplete')}
                                 </button>
                             )}
                             <button
@@ -915,19 +955,18 @@ export function CalendarPage() {
                                     </select>
                                 </label>
 
-                                <label className="field">
+                                <div className="field">
                                     <span>{t('calendar.dateTime')}</span>
-                                    <input
-                                        type="datetime-local"
+                                    <DateTimePicker
                                         value={scheduledAt}
-                                        onChange={(event) =>
-                                            setScheduledAt(
-                                                event.target.value,
-                                            )
-                                        }
+                                        onChange={setScheduledAt}
+                                        ariaLabel={t('calendar.dateTime')}
+                                        placeholder={t(
+                                            'picker.selectDateTime',
+                                        )}
                                         required
                                     />
-                                </label>
+                                </div>
                             </div>
 
                             <label className="field">
@@ -950,7 +989,8 @@ export function CalendarPage() {
                                     type="submit"
                                     disabled={
                                         saveMutation.isPending ||
-                                        !applicationId
+                                        !applicationId ||
+                                        !scheduledAt
                                     }
                                 >
                                     {saveMutation.isPending

@@ -1,4 +1,11 @@
-import { useMemo, useState, type CSSProperties, type FormEvent } from 'react'
+import {
+    useEffect,
+    useCallback,
+    useMemo,
+    useState,
+    type CSSProperties,
+    type FormEvent,
+} from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router'
 import type { ApplicationStatus } from '../api/applications'
@@ -198,6 +205,7 @@ function TrendChart({
                             cx={point.x}
                             cy={point.y}
                             r="3"
+                            aria-label={`${point.date}: ${point.count}`}
                         >
                             <title>{`${point.date}: ${point.count}`}</title>
                         </circle>
@@ -219,6 +227,7 @@ function TrendChart({
                             width={barWidth}
                             height={padding.top + innerHeight - point.y}
                             rx="3"
+                            aria-label={`${point.date}: ${point.count}`}
                         >
                             <title>{`${point.date}: ${point.count}`}</title>
                         </rect>
@@ -274,6 +283,21 @@ export function StatisticsPage() {
     })
 
     const overview = statisticsQuery.data
+    const cumulativeTrend = useMemo(
+        () =>
+            (overview?.applicationsOverTime ?? []).map(
+                (point, index, points) => ({
+                    ...point,
+                    count: points
+                        .slice(0, index + 1)
+                        .reduce(
+                            (total, current) => total + current.count,
+                            0,
+                        ),
+                }),
+            ),
+        [overview?.applicationsOverTime],
+    )
     const statusByName = useMemo(
         () =>
             new Map(
@@ -308,18 +332,44 @@ export function StatisticsPage() {
 
     function openApplications(event: FormEvent<HTMLFormElement>) {
         event.preventDefault()
-        const query = new URLSearchParams()
-
-        if (search.trim()) {
-            query.set('search', search.trim())
-        }
-        if (status) {
-            query.set('status', status)
-        }
-
-        const suffix = query.size > 0 ? `?${query.toString()}` : ''
-        navigate(`/applications${suffix}`)
+        navigateToApplications(search, status)
     }
+
+    const navigateToApplications = useCallback(
+        (
+            searchValue: string,
+            statusValue: ApplicationStatus | '',
+        ) => {
+            const query = new URLSearchParams()
+            const normalizedSearch = searchValue.trim()
+
+            if (normalizedSearch.length >= 2) {
+                query.set('search', normalizedSearch)
+            }
+            if (statusValue) {
+                query.set('status', statusValue)
+            }
+
+            const suffix =
+                query.size > 0 ? `?${query.toString()}` : ''
+            navigate(`/applications${suffix}`)
+        },
+        [navigate],
+    )
+
+    useEffect(() => {
+        const normalizedSearch = search.trim()
+
+        if (normalizedSearch.length < 2) {
+            return
+        }
+
+        const timeoutId = window.setTimeout(() => {
+            navigateToApplications(normalizedSearch, status)
+        }, 300)
+
+        return () => window.clearTimeout(timeoutId)
+    }, [navigateToApplications, search, status])
 
     const summary: StatisticsSummary | undefined = overview?.summary
     const numberFormatter = new Intl.NumberFormat(locale, {
@@ -375,13 +425,17 @@ export function StatisticsPage() {
                                     </span>
                                     <select
                                         value={status}
-                                        onChange={(event) =>
-                                            setStatus(
-                                                event.target.value as
-                                                    | ApplicationStatus
-                                                    | '',
+                                        onChange={(event) => {
+                                            const nextStatus = event.target
+                                                .value as
+                                                | ApplicationStatus
+                                                | ''
+                                            setStatus(nextStatus)
+                                            navigateToApplications(
+                                                search,
+                                                nextStatus,
                                             )
-                                        }
+                                        }}
                                     >
                                         <option value="">
                                             {t('filter.allStatuses')}
@@ -393,13 +447,6 @@ export function StatisticsPage() {
                                         ))}
                                     </select>
                                 </label>
-                                <button
-                                    className="header-search-submit"
-                                    type="submit"
-                                    aria-label={t('filter.search')}
-                                >
-                                    →
-                                </button>
                             </form>
 
                             <button
@@ -564,9 +611,7 @@ export function StatisticsPage() {
                                         </div>
                                     </div>
                                     <TrendChart
-                                        points={
-                                            overview.applicationsOverTime
-                                        }
+                                        points={cumulativeTrend}
                                         mode={chartMode}
                                         locale={locale}
                                         emptyLabel={t(
