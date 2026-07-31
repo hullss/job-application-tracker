@@ -65,16 +65,17 @@ export function DashboardSidebar({
                     {t('nav.calendar')}
                 </Link>
 
-                <span
-                    className={`sidebar-nav__item sidebar-nav__item--muted ${
+                <Link
+                    className={`sidebar-nav__item ${
                         active === 'statistics'
                             ? 'sidebar-nav__item--active'
                             : ''
                     }`}
+                    to="/statistics"
                 >
                     <span aria-hidden="true">◒</span>
                     {t('nav.statistics')}
-                </span>
+                </Link>
             </nav>
 
             <button

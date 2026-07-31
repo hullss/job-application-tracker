@@ -6,6 +6,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.LocalDate;
+import java.util.List;
 import java.util.Optional;
 
 public interface ApplicationRepository
@@ -17,18 +19,28 @@ public interface ApplicationRepository
     );
 
     @Query("""
-        SELECT a FROM Application a
-        WHERE LOWER(a.owner.email) = LOWER(:email)
-          AND (:status IS NULL OR a.currentStatus = :status)
-          AND (
-              LOWER(a.company) LIKE CONCAT('%', :search, '%')
-              OR LOWER(a.position) LIKE CONCAT('%', :search, '%')
-          )
-        """)
+            SELECT a FROM Application a
+            WHERE LOWER(a.owner.email) = LOWER(:email)
+              AND (:status IS NULL OR a.currentStatus = :status)
+              AND (
+                  LOWER(a.company) LIKE CONCAT('%', :search, '%')
+                  OR LOWER(a.position) LIKE CONCAT('%', :search, '%')
+              )
+            """)
     Page<Application> findAllFiltered(
             @Param("email") String email,
             @Param("search") String search,
             @Param("status") ApplicationStatus status,
             Pageable pageable
+    );
+
+    List<Application> findAllByOwnerEmailIgnoreCase(
+            String email
+    );
+
+    List<Application> findAllByOwnerEmailIgnoreCaseAndAppliedDateBetween(
+            String email,
+            LocalDate from,
+            LocalDate to
     );
 }

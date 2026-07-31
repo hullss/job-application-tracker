@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from 'react-router'
 import { ApplicationsPage } from './pages/ApplicationsPage.tsx'
 import { CalendarPage } from './pages/CalendarPage.tsx'
+import { StatisticsPage } from './pages/StatisticsPage.tsx'
 import { LoginPage } from './pages/LoginPage.tsx'
 import { RegisterPage } from './pages/RegisterPage.tsx'
 import { ProtectedRoute } from './components/ProtectedRoute'
@@ -24,6 +25,14 @@ function App() {
                 element={
                     <ProtectedRoute>
                         <CalendarPage />
+                    </ProtectedRoute>
+                }
+            />
+            <Route
+                path="/statistics"
+                element={
+                    <ProtectedRoute>
+                        <StatisticsPage />
                     </ProtectedRoute>
                 }
             />

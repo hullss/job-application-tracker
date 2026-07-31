@@ -111,10 +111,21 @@ export function ApplicationsPage() {
         Record<number, string>
     >({})
 
-    const [searchInput, setSearchInput] = useState('')
-    const [search, setSearch] = useState('')
+    const initialSearch = new URLSearchParams(window.location.search)
+        .get('search')
+        ?.trim() ?? ''
+    const initialStatusValue = new URLSearchParams(
+        window.location.search,
+    ).get('status')
+    const initialStatus = APPLICATION_STATUSES.includes(
+        initialStatusValue as ApplicationStatus,
+    )
+        ? (initialStatusValue as ApplicationStatus)
+        : ''
+    const [searchInput, setSearchInput] = useState(initialSearch)
+    const [search, setSearch] = useState(initialSearch)
     const [statusFilter, setStatusFilter] =
-        useState<ApplicationStatus | ''>('')
+        useState<ApplicationStatus | ''>(initialStatus)
     const [page, setPage] = useState(0)
 
     const applicationsQuery = useQuery({

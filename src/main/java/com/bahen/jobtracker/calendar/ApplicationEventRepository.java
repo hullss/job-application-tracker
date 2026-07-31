@@ -39,4 +39,17 @@ public interface ApplicationEventRepository
             @Param("eventId") Long eventId,
             @Param("userEmail") String userEmail
     );
+
+    @Query("""
+            SELECT event
+            FROM ApplicationEvent event
+            JOIN event.application application
+            JOIN application.owner owner
+            WHERE LOWER(owner.email) = LOWER(:userEmail)
+              AND event.type = :type
+            """)
+    List<ApplicationEvent> findAllForUserByType(
+            @Param("userEmail") String userEmail,
+            @Param("type") ApplicationEventType type
+    );
 }
