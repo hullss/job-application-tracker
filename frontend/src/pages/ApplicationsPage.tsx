@@ -18,6 +18,7 @@ import {
     type SkillGapAnalysis,
 } from '../api/skillGap'
 import { ConfirmDialog } from '../components/ConfirmDialog'
+import { DashboardSidebar } from '../components/DashboardSidebar'
 import { ProfileMenu } from '../components/ProfileMenu'
 import { SkillGapResult } from '../components/SkillGapResult'
 import { Toast, type ToastKind } from '../components/Toast'
@@ -93,7 +94,11 @@ export function ApplicationsPage() {
     const [followUpAt, setFollowUpAt] = useState('')
     const [notes, setNotes] = useState('')
     const [detailsOpen, setDetailsOpen] = useState(false)
-    const [isFormOpen, setIsFormOpen] = useState(false)
+    const [isFormOpen, setIsFormOpen] = useState(
+        () =>
+            new URLSearchParams(window.location.search).get('add') ===
+            'true',
+    )
     const [editingApplication, setEditingApplication] =
         useState<JobApplication | null>(null)
     const [applicationToDelete, setApplicationToDelete] =
@@ -360,54 +365,11 @@ export function ApplicationsPage() {
 
     return (
         <main className="dashboard-page">
-            <aside className="dashboard-sidebar">
-                <div className="brand">
-                    <span className="brand-mark">JT</span>
-                    <span>JobTrack</span>
-                </div>
-
-                <nav
-                    className="sidebar-nav"
-                    aria-label={t('nav.main')}
-                >
-                    <a
-                        className="sidebar-nav__item sidebar-nav__item--active"
-                        href="#applications-list"
-                    >
-                        <span aria-hidden="true">⌂</span>
-                        {t('nav.dashboard')}
-                    </a>
-                    <a className="sidebar-nav__item" href="#applications-list">
-                        <span aria-hidden="true">▤</span>
-                        {t('nav.applications')}
-                    </a>
-                    <button
-                        className="sidebar-nav__item"
-                        type="button"
-                        onClick={openCreateForm}
-                    >
-                        <span aria-hidden="true">＋</span>
-                        {t('nav.addApplication')}
-                    </button>
-                    <span className="sidebar-nav__item sidebar-nav__item--muted">
-                        <span aria-hidden="true">◫</span>
-                        {t('nav.calendar')}
-                    </span>
-                    <span className="sidebar-nav__item sidebar-nav__item--muted">
-                        <span aria-hidden="true">◒</span>
-                        {t('nav.statistics')}
-                    </span>
-                </nav>
-
-                <button
-                    className="sidebar-logout"
-                    type="button"
-                    onClick={logout}
-                >
-                    <span aria-hidden="true">↪</span>
-                    {t('account.logout')}
-                </button>
-            </aside>
+            <DashboardSidebar
+                active="dashboard"
+                onAddApplication={openCreateForm}
+                onLogout={logout}
+            />
 
             <section className="dashboard-workspace">
                 <header className="dashboard-header">

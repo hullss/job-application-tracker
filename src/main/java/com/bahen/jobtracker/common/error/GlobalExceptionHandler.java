@@ -15,6 +15,7 @@ import com.bahen.jobtracker.user.UserSkillAlreadyExistsException;
 import com.bahen.jobtracker.user.UserSkillNotFoundException;
 import com.bahen.jobtracker.skillgap.JobDescriptionMissingException;
 import com.bahen.jobtracker.skillgap.analyzer.AiAnalysisException;
+import com.bahen.jobtracker.calendar.ApplicationEventNotFoundException;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -189,6 +190,20 @@ public class GlobalExceptionHandler {
         );
 
         problem.setTitle("AI analysis unavailable");
+
+        return problem;
+    }
+
+    @ExceptionHandler(ApplicationEventNotFoundException.class)
+    public ProblemDetail handleApplicationEventNotFound(
+            ApplicationEventNotFoundException exception
+    ) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.NOT_FOUND,
+                exception.getMessage()
+        );
+
+        problem.setTitle("Calendar event not found");
 
         return problem;
     }
